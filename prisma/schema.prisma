@@ -1,0 +1,534 @@
+// OnBehalf Database Schema
+// Modernized from 2006 ASP.NET/SQL Server 2000 to Prisma/PostgreSQL
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ==================== USER MODELS ====================
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String  @map("user_id")
+  type              String
+  provider          String
+  providerAccountId String  @map("provider_account_id")
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique @map("session_token")
+  userId       String   @map("user_id")
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+enum UserRole {
+  USER
+  ADMIN
+  MODERATOR
+}
+
+enum MembershipType {
+  FREE
+  PREMIUM
+}
+
+enum UserStatus {
+  PENDING
+  ACTIVE
+  SUSPENDED
+  DELETED
+}
+
+model User {
+  id                    String         @id @default(cuid())
+  email                 String         @unique
+  emailVerified         DateTime?      @map("email_verified")
+  password              String?        // Hashed password
+  role                  UserRole       @default(USER)
+  status                UserStatus     @default(PENDING)
+  
+  // Matchmaker Profile
+  firstName             String         @map("first_name")
+  lastName              String         @map("last_name")
+  nickname              String         @unique
+  telephone             String
+  dateOfBirth           DateTime?      @map("date_of_birth")
+  gender                Gender?
+  religion              String?
+  motherLanguage        String?        @map("mother_language")
+  
+  // Address
+  addressLine1          String         @map("address_line1")
+  addressLine2          String?        @map("address_line2")
+  city                  String
+  county                String
+  country               String         @default("United Kingdom")
+  postcode              String
+  
+  // Avatar
+  avatarUrl             String?        @map("avatar_url")
+  avatarType            AvatarType?    @map("avatar_type")
+  
+  // Membership
+  membershipType        MembershipType @default(FREE) @map("membership_type")
+  
+  // Timestamps
+  createdAt             DateTime       @default(now()) @map("created_at")
+  updatedAt             DateTime       @updatedAt @map("updated_at")
+  
+  // Relations
+  accounts              Account[]
+  sessions              Session[]
+  singleFriends         SingleFriend[] @relation("MatchmakerSingleFriends")
+  sentFriendRequests    FriendRequest[] @relation("SentFriendRequests")
+  receivedFriendRequests FriendRequest[] @relation("ReceivedFriendRequests")
+  friendshipsInitiated  Friendship[] @relation("FriendshipInitiator")
+  friendshipsReceived   Friendship[] @relation("FriendshipRecipient")
+  sentMessages          Message[] @relation("SentMessages")
+  receivedMessages      Message[] @relation("ReceivedMessages")
+  ratingsGiven          MatchmakerRating[] @relation("RatingsGiven")
+  ratingsReceived       MatchmakerRating[] @relation("RatingsReceived")
+  subscriptions         Subscription[]
+  payments              Payment[]
+  logs                  ActivityLog[]
+  photos                Photo[]
+  
+  @@map("users")
+}
+
+// ==================== SINGLE FRIEND MODELS ====================
+
+enum Gender {
+  MALE
+  FEMALE
+}
+
+enum MaritalStatus {
+  NEVER_MARRIED
+  DIVORCED
+  WIDOWED
+  SEPARATED
+}
+
+enum Build {
+  PETITE
+  SLIM
+  AVERAGE
+  WELL_BUILT
+  LARGE
+}
+
+enum Height {
+  BELOW_5_0
+  BETWEEN_5_0_5_3
+  BETWEEN_5_3_5_6
+  BETWEEN_5_6_5_9
+  BETWEEN_5_9_6_0
+  ABOVE_6_0
+}
+
+enum StarSign {
+  ARIES
+  TAURUS
+  GEMINI
+  CANCER
+  LEO
+  VIRGO
+  LIBRA
+  SCORPIO
+  SAGITTARIUS
+  CAPRICORN
+  AQUARIUS
+  PISCES
+}
+
+enum DrinkingHabit {
+  NEVER
+  OCCASIONALLY
+  REGULARLY
+}
+
+enum SmokingHabit {
+  NEVER
+  OCCASIONALLY
+  REGULARLY
+}
+
+enum SingleFriendStatus {
+  PENDING_APPROVAL
+  ACTIVE
+  MATCHED
+  DELETED
+  SUSPENDED
+}
+
+enum RelationshipType {
+  PARENT
+  SIBLING
+  AUNT_UNCLE
+  COUSIN
+  FRIEND
+  OTHER_FAMILY
+}
+
+model SingleFriend {
+  id                      String             @id @default(cuid())
+  userId                  String             @map("user_id")
+  matchmaker              User               @relation("MatchmakerSingleFriends", fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Personal Details
+  relationship            RelationshipType
+  firstName               String             @map("first_name")
+  lastName                String             @map("last_name")
+  email                   String
+  gender                  Gender
+  dateOfBirth             DateTime           @map("date_of_birth")
+  
+  // Address
+  addressLine1            String             @map("address_line1")
+  addressLine2            String?            @map("address_line2")
+  city                    String
+  county                  String
+  country                 String             @default("United Kingdom")
+  postcode                String
+  
+  // Personal Stats
+  religion                String
+  motherLanguage          String             @map("mother_language")
+  sect                    String?
+  caste                   String?
+  maritalStatus           MaritalStatus      @map("marital_status")
+  occupation              String
+  occupationOther         String?            @map("occupation_other")
+  educationLevel          String             @map("education_level")
+  build                   Build?
+  height                  Height?
+  starSign                StarSign?          @map("star_sign")
+  drinking                DrinkingHabit?
+  smoking                 SmokingHabit?
+  
+  // Descriptions
+  description             String?            @db.Text
+  idealPartnerDescription String?            @map("ideal_partner_description") @db.Text
+  oneLiner                String?            @map("one_liner") @db.VarChar(50)
+  
+  // Lifestyle / Attitudes (0-20 scale)
+  looks                   Int?               @default(10)
+  faithAttitude           Int?               @map("faith_attitude") @default(10)
+  intelligence            Int?               @default(10)
+  careerAmbition          Int?               @map("career_ambition") @default(10)
+  outlook                 Int?               @default(10)
+  humour                  Int?               @default(10)
+  energy                  Int?               @default(10)
+  outgoing                Int?               @default(10)
+  
+  // Status
+  status                  SingleFriendStatus @default(PENDING_APPROVAL)
+  
+  // Timestamps
+  createdAt               DateTime           @default(now()) @map("created_at")
+  updatedAt               DateTime           @updatedAt @map("updated_at")
+  
+  // Relations
+  personalityTraits       PersonalityTrait[]
+  photos                  Photo[]
+  subscription            Subscription?
+  
+  @@map("single_friends")
+}
+
+model PersonalityTrait {
+  id             String       @id @default(cuid())
+  singleFriendId String       @map("single_friend_id")
+  singleFriend   SingleFriend @relation(fields: [singleFriendId], references: [id], onDelete: Cascade)
+  trait          String
+  
+  @@unique([singleFriendId, trait])
+  @@map("personality_traits")
+}
+
+model Photo {
+  id             String        @id @default(cuid())
+  userId         String?       @map("user_id")
+  user           User?         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  singleFriendId String?       @map("single_friend_id")
+  singleFriend   SingleFriend? @relation(fields: [singleFriendId], references: [id], onDelete: Cascade)
+  
+  url            String
+  thumbnailUrl   String?       @map("thumbnail_url")
+  caption        String?
+  isPrimary      Boolean       @default(false) @map("is_primary")
+  
+  createdAt      DateTime      @default(now()) @map("created_at")
+  
+  @@map("photos")
+}
+
+// ==================== FRIENDSHIP MODELS ====================
+
+enum FriendRequestStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+}
+
+model FriendRequest {
+  id         String              @id @default(cuid())
+  senderId   String              @map("sender_id")
+  sender     User                @relation("SentFriendRequests", fields: [senderId], references: [id], onDelete: Cascade)
+  receiverId String              @map("receiver_id")
+  receiver   User                @relation("ReceivedFriendRequests", fields: [receiverId], references: [id], onDelete: Cascade)
+  status     FriendRequestStatus @default(PENDING)
+  createdAt  DateTime            @default(now()) @map("created_at")
+  updatedAt  DateTime            @updatedAt @map("updated_at")
+  
+  @@unique([senderId, receiverId])
+  @@map("friend_requests")
+}
+
+model Friendship {
+  id          String   @id @default(cuid())
+  userId      String   @map("user_id")
+  user        User     @relation("FriendshipInitiator", fields: [userId], references: [id], onDelete: Cascade)
+  friendId    String   @map("friend_id")
+  friend      User     @relation("FriendshipRecipient", fields: [friendId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now()) @map("created_at")
+  
+  @@unique([userId, friendId])
+  @@map("friendships")
+}
+
+// ==================== MESSAGING MODELS ====================
+
+model Message {
+  id          String    @id @default(cuid())
+  senderId    String    @map("sender_id")
+  sender      User      @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
+  recipientId String    @map("recipient_id")
+  recipient   User      @relation("ReceivedMessages", fields: [recipientId], references: [id], onDelete: Cascade)
+  subject     String
+  content     String    @db.Text
+  isRead      Boolean   @default(false) @map("is_read")
+  parentId    String?   @map("parent_id")
+  parent      Message?  @relation("MessageReplies", fields: [parentId], references: [id])
+  replies     Message[] @relation("MessageReplies")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  
+  @@map("messages")
+}
+
+// ==================== RATING MODELS ====================
+
+enum RatingType {
+  POSITIVE
+  NEUTRAL
+  NEGATIVE
+}
+
+model MatchmakerRating {
+  id          String     @id @default(cuid())
+  raterId     String     @map("rater_id")
+  rater       User       @relation("RatingsGiven", fields: [raterId], references: [id], onDelete: Cascade)
+  rateeId     String     @map("ratee_id")
+  ratee       User       @relation("RatingsReceived", fields: [rateeId], references: [id], onDelete: Cascade)
+  rating      RatingType
+  comment     String?    @db.VarChar(500)
+  createdAt   DateTime   @default(now()) @map("created_at")
+  
+  @@unique([raterId, rateeId])
+  @@map("matchmaker_ratings")
+}
+
+// ==================== SUBSCRIPTION & PAYMENT MODELS ====================
+
+enum BillingCycle {
+  MONTHLY
+  QUARTERLY
+  ANNUALLY
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  CANCELLED
+  EXPIRED
+  PENDING_PAYMENT
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+enum PaymentMethod {
+  CREDIT_CARD
+  CHEQUE
+  WIRE_TRANSFER
+}
+
+model Subscription {
+  id              String             @id @default(cuid())
+  userId          String             @map("user_id")
+  user            User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  singleFriendId  String?            @unique @map("single_friend_id")
+  singleFriend    SingleFriend?      @relation(fields: [singleFriendId], references: [id])
+  
+  billingCycle    BillingCycle       @map("billing_cycle")
+  status          SubscriptionStatus @default(PENDING_PAYMENT)
+  startDate       DateTime           @map("start_date")
+  endDate         DateTime?          @map("end_date")
+  nextBillingDate DateTime?          @map("next_billing_date")
+  
+  // Pricing
+  amount          Decimal            @db.Decimal(10, 2)
+  currency        String             @default("GBP")
+  
+  // Cancellation
+  cancelledAt     DateTime?          @map("cancelled_at")
+  cancellationReason String?         @map("cancellation_reason") @db.Text
+  
+  createdAt       DateTime           @default(now()) @map("created_at")
+  updatedAt       DateTime           @updatedAt @map("updated_at")
+  
+  // Relations
+  payments        Payment[]
+  
+  @@map("subscriptions")
+}
+
+model Payment {
+  id              String        @id @default(cuid())
+  userId          String        @map("user_id")
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subscriptionId  String        @map("subscription_id")
+  subscription    Subscription  @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  
+  amount          Decimal       @db.Decimal(10, 2)
+  currency        String        @default("GBP")
+  paymentMethod   PaymentMethod @map("payment_method")
+  status          PaymentStatus @default(PENDING)
+  
+  // Stripe fields
+  stripePaymentIntentId String? @map("stripe_payment_intent_id")
+  stripeCustomerId      String? @map("stripe_customer_id")
+  
+  // For non-card payments
+  notes           String?       @db.Text
+  
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+  
+  @@map("payments")
+}
+
+// ==================== PROMOTION MODELS ====================
+
+enum DiscountType {
+  FIXED
+  PERCENTAGE
+}
+
+model Promotion {
+  id              String       @id @default(cuid())
+  code            String       @unique
+  description     String?
+  limit           Int
+  usedCount       Int          @default(0) @map("used_count")
+  discountType    DiscountType @map("discount_type")
+  discountAmount  Decimal      @map("discount_amount") @db.Decimal(10, 2)
+  startDate       DateTime     @map("start_date")
+  endDate         DateTime     @map("end_date")
+  isActive        Boolean      @default(true) @map("is_active")
+  message         String?      @db.Text
+  
+  createdAt       DateTime     @default(now()) @map("created_at")
+  updatedAt       DateTime     @updatedAt @map("updated_at")
+  
+  @@map("promotions")
+}
+
+// ==================== ACTIVITY LOGS ====================
+
+enum LogType {
+  MATCHMAKER_VIEW
+  SINGLE_FRIEND_VIEW
+  PHOTO_VIEW
+  USER_LOGIN
+  USER_LOGOUT
+  INCORRECT_LOGIN
+  PAYMENT_REQUEST
+  PAYMENT_SUCCESS
+  PAYMENT_FAILURE
+}
+
+model ActivityLog {
+  id            String   @id @default(cuid())
+  userId        String?  @map("user_id")
+  user          User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  type          LogType
+  description   String?
+  metadata      Json?
+  ipAddress     String?  @map("ip_address")
+  userAgent     String?  @map("user_agent")
+  createdAt     DateTime @default(now()) @map("created_at")
+  
+  @@index([type])
+  @@index([createdAt])
+  @@map("activity_logs")
+}
+
+// ==================== CONTENT MODELS ====================
+
+model Article {
+  id          String   @id @default(cuid())
+  title       String
+  slug        String   @unique
+  content     String   @db.Text
+  excerpt     String?
+  author      String?
+  publishedAt DateTime? @map("published_at")
+  isPublished Boolean  @default(false) @map("is_published")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  
+  @@map("articles")
+}
+
+// ==================== AVATAR OPTIONS ====================
+
+enum AvatarType {
+  PREDESIGNED
+  CUSTOM
+}
+
+model PredefinedAvatar {
+  id        String   @id @default(cuid())
+  url       String
+  category  String
+  gender    Gender?
+  createdAt DateTime @default(now()) @map("created_at")
+  
+  @@map("predefined_avatars")
+}
